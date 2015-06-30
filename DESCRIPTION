@@ -7,3 +7,19 @@ Authors@R: person("First", "Last", email = "first.last@example.com", role = c("a
 Description: More about what it does (maybe more than one line)
 License: What license is it under?
 LazyData: TRUE
+Imports: corrplot,
+    doBy,
+    dplyr,
+    ggplot2,
+    LDAvis,
+    lubridate,
+    magrittr,
+    rJava,
+    Rmpfr,
+    stringi,
+    stringr,
+    tidyr,
+    tm,
+    topicmodels
+
+SystemRequirements: Java(>= 1.5)
