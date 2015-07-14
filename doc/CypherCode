@@ -1,0 +1,129 @@
+// THis cypher code will create the nodes and relationship for
+// the lesson learn data. 
+// I am working on recreating this using the Rneo4j package
+// Delete all Nodes and Relationships
+// If you want to start fresh
+MATCH (n)
+OPTIONAL MATCH (n)-[r]-()
+DELETE n,r
+
+// The next four lines are used to verify connection and structure
+// This is to test your connection and verify how the data is structured
+LOAD CSV WITH HEADERS 
+// FROM 'file:///Users/David/Dropbox/RData/NEN_LLIS/data/llis.csv' AS line WINDOWS CODE
+FROM 'file:e:/Users/David/Dropbox/doctopics/data/llis.csv' AS line
+FROM 'file:/Users/dmeza/Dropbox/RData/NEN_LLIS/data/llis.csv' AS line
+WITH line
+Limit 1
+RETURN line
+
+
+// Nodes created for Lessons, Submitter, Center and Topic
+// Relations created 
+
+	// Uniqueness constraints.
+CREATE CONSTRAINT ON (l:Lesson) ASSERT l.name IS UNIQUE;
+
+	// Load.
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS 
+// FROM 'file:e:/Users/David/Dropbox/RData/NEN_LLIS/data/llis.csv' AS line
+//FROM 'file:/Users/dmeza/Dropbox/RData/NEN_LLIS/data/llis.csv' AS line
+FROM 'file:e:/Users/David/Dropbox/doctopics/data/llis.csv' AS line
+WITH line, SPLIT(line.LessonDate, '-') AS date
+
+CREATE (lesson:Lesson { name: TOINT(line.`LessonId`) } )
+SET lesson.year = TOINT(date[0]),
+    lesson.month = TOINT(date[1]),
+    lesson.day = TOINT(date[2]),
+    lesson.title = (line.Title),
+    lesson.abstract = (line.Abstract),
+    lesson.lesson = (line.Lesson),
+    lesson.org = (line.MissionDirectorate),
+    lesson.safety = (line.SafetyIssue),
+    lesson.url = (line.url)
+
+    
+// Merges multiple entries of node in csv file
+MERGE (submitter:Submitter { name: UPPER(line.Submitter1) })
+MERGE (center:Center { name: UPPER(line.Organization) })
+MERGE (topic:Topic { name: TOINT(line.Topic) })
+MERGE (category:Category { name: UPPER(line.Category) })
+
+CREATE (topic)-[:Contains]->(lesson)
+CREATE (submitter)-[:Wrote]->(lesson)
+CREATE (lesson)-[:OccurredAt]->(center)
+CREATE (lesson)-[:InCategory]->(category)
+
+;
+
+// Topic, category.
+// Adds the category nodeand creates a relations to the topic
+
+	// Load.
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS 
+FROM 'file:e:/Users/David/Dropbox/doctopics/data/topicCategory.csv' AS line
+//FROM 'file:///Users/David/Dropbox/RData/NEN_LLIS/data/topicCategory.csv' AS line
+
+MATCH (topic:Topic { name: TOINT(line.Topic) })
+
+MATCH (category:Category { name: UPPER(line.Category) })
+
+CREATE (topic)-[:AssociatedTo]->(category)
+
+;
+
+
+// Topic, Corelation.
+// Adds a relation to each topic using their correlation
+// as a property of the relationship
+
+   // Load.
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS 
+FROM 'file:e:/Users/David/Dropbox/doctopics/data/topicCorr.csv' AS line
+//FROM 'file:///Users/David/Dropbox/RData/NEN_LLIS/data/topicCorr.csv' AS line
+
+MATCH (topic:Topic), (topic2:Topic)
+WHERE topic.name = TOINT(line.Topic) AND topic2.name = TOINT(line.ToTopic)
+
+MERGE (topic)-[c:CorrelatedTo {corr : TOFLOAT(line.Correlation)}]-(topic2)
+// MERGE is used because it is non directed relationship
+
+;
+
+
+// Topic, Terms.
+// Creates term nodes and relationship to topic by the rank the
+// term is in the topic. A rank of 1 means that term is the most
+// frequent in that topic
+
+   // Load.
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS 
+FROM 'file:e:/Users/David/Dropbox/doctopics/data/topicTerms.csv' AS line
+// FROM 'file:/Users/David/Dropbox/RData/NEN_LLIS/data/topicTerms.csv' AS line
+MATCH (topic:Topic { name: TOINT(line.Topic) })
+
+MERGE (term:Term { name: UPPER(line.Terms) })
+
+CREATE (term)-[r:RankIn {rank : TOINT(line.Rank)}]->(topic)
+
+;
+
+// Topic, Labels.
+// Creates label porperty for each topic by using the top 3 ranked
+// terms is in the topic. A rank of 1 means that term is the most
+// frequent in that topic
+
+   // Load.
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS 
+FROM 'file:e:/Users/David/Dropbox/doctopics/data/topicLabels.csv' AS line
+// FROM 'file:/Users/David/Dropbox/RData/NEN_LLIS/data/topicLabels.csv' AS line
+MATCH (topic:Topic { name: TOINT(line.Topic) })
+
+SET topic.label = line.Label
+
+;

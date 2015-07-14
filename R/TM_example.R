@@ -165,6 +165,17 @@ llis.terms <- as.data.frame(topicmodels::terms(llis.model, 30), stringsAsFactors
 llis.terms[1:5]
 ## Adds topic number to original dataframe of lessons
 llis.display <- dplyr::inner_join(llis.display, doctopics.df, by = "LessonId")
+## create Label for each topic
+topicTerms <-
+topTerms <- dplyr::filter(topicTerms, Terms < 4)
+topicLabel <- data.frame()
+for (i in 1:35){
+     z <- filter(topTerms, Topic == i)
+     l <- as.data.frame(paste(z[1,2], z[2,2], z[3,2], sep = " " ), stringsAsFactors = FALSE)
+     topicLabel <- rbind(topicLabel, l)
+
+}
+colnames(topicLabel) <- c("Label")
 
 ## Dataframe of theta, the per-document probabilities from topics from the fitted model's posteriors
 theta <- as.data.frame(topicmodels::posterior(llis.model)$topics)
