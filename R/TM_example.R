@@ -18,7 +18,8 @@ library("stringr")
 ## Load the data file to start the analysis
 ## You need to load the magrittr package. I can not use magrittr::
 
-load("llisDisplay.RData")
+load("data/llisDisplay.RData")
+head(llis.display)
 tmp <- data.frame()
 CategorybyLesson <- data.frame()
 for (i in 1:length(rownames(llis.display))) {
@@ -49,7 +50,14 @@ for (i in 1:length(rownames(llis.display))) {
 colnames(FirstCategorybyLesson) <- c("Category", "LessonId")
 FirstCategorybyLesson$LessonId <- as.character(FirstCategorybyLesson$LessonId)
 FirstCategorybyLesson$LessonId <- as.numeric(FirstCategorybyLesson$LessonId)
-FirstCategorybyLesson<- dplyr::filter(FirstCategorybyLesson, Category != "")
+FirstCategorybyLesson$Category <- as.character(FirstCategorybyLesson$Category)
+# FirstCategorybyLesson<- dplyr::filter(FirstCategorybyLesson, Category != "")
+for (i in 1:1637){
+     if (FirstCategorybyLesson[i,1] == "") { FirstCategorybyLesson[i,1] <-
+          c("Unknown")
+     }
+}
+FirstCategorybyLesson$Category <- as.factor(FirstCategorybyLesson$Category)
 ######
 
 
@@ -63,21 +71,22 @@ llis.corpus <- tm::Corpus(tm::DataframeSource(llis.display), readerControl = lis
 ## Create the document term matrix. The final dtm will be used in the LDA model.
 llistopic.dtm <- tm::DocumentTermMatrix(llis.corpus, control = list(stemming = TRUE, stopwords = TRUE,
                                     minWordLength = 2, removeNumbers = TRUE, removePunctuation = TRUE))
+# I decided to use all the terms and let the tf-idf reduce it
 ## Reduces dtm to words occurring in at least five docs
-llisreduced.dtm <-llistopic.dtm[ , which(table(llistopic.dtm$j) >= 5)]
+#   llisreduced.dtm <-llistopic.dtm[ , which(table(llistopic.dtm$j) >= 5)]
 
 ## The mean term frequency-inverse document frequency (tf-idf) over documents containing
 ## this term is used to select the vocabulary. This measure allows to omit terms which have low
 ## frequency as well as those occurring in many documents. We only include terms which
 ## have a tf-idf value of at least 0.2 which is a bit more than the median and ensures that the very
 ## frequent terms are omitted.
-term_tfidf <- tapply(llisreduced.dtm$v/slam::row_sums(llisreduced.dtm)[llisreduced.dtm$i], llisreduced.dtm$j, mean) *
-  log2(tm::nDocs(llisreduced.dtm)/slam::col_sums(llisreduced.dtm > 0))
+term_tfidf <- tapply(llistopic.dtm$v/slam::row_sums(llistopic.dtm)[llistopic.dtm$i], llistopic.dtm$j, mean) *
+  log2(tm::nDocs(llistopic.dtm)/slam::col_sums(llistopic.dtm > 0))
 summary(term_tfidf)
-## Keeping the rows with tfidf >= to the 0.2
-llisreduced.dtm <- llisreduced.dtm[,term_tfidf >= 0.2]
+## Keeping the rows with tfidf >= to the 0.155
+llisreduced.dtm <- llistopic.dtm[,term_tfidf >= 0.155]
 ## Keeps rows with sum greater than 0
-llisreduced.dtm <- llisreduced.dtm[slam::row_sums(llisreduced.dtm) > 0,]
+#llisreduced.dtm <- llisreduced.dtm[slam::row_sums(llisreduced.dtm) > 0,]
 summary(slam::col_sums(llisreduced.dtm))
 
 ## Regarding the general question of optimal topic numbers, I now follow the example of Martin Ponweiser on
@@ -99,7 +108,7 @@ burnin <- 1000
 iter <- 1000
 keep <- 50
 fitted <- topicmodels::LDA(llisreduced.dtm, k = k, method = "Gibbs",control = list(burnin = burnin, iter = iter, keep = keep) )
-## assuming that burnin is a multiple of keep and
+## assuming that burnin is a multiple of keep
 logLiks <- fitted@logLiks[-c(1:(burnin/keep))]
 
 ## This returns the harmomnic mean for k = 25 topics.
@@ -129,7 +138,7 @@ hm_many <- sapply(logLiks_many, function(h) harmonicMean(h))
 
 # Using ggplot 2 we construct a plot to inspect the harmonic means
 ldaplot <- ggplot(data.frame(seqk, hm_many), aes(x=seqk, y=hm_many)) + geom_path(lwd=1.5) +
-  theme(text = element_text(family= NULL),
+       theme(text = element_text(family= NULL),
         axis.title.y=element_text(vjust=1, size=16),
         axis.title.x=element_text(vjust=-.5, size=16),
         axis.text=element_text(size=16),
@@ -148,7 +157,7 @@ seqk[which.max(hm_many)]
 ## The model will run through 2000 iterations, using the seed for reproducability. The system time was:
 ##    user  system elapsed
 ##  14.005   0.013  14.033
-system.time(llis.model <- topicmodels::LDA(llisreduced.dtm, 35, method = "Gibbs", control = list(iter=2000, seed = 0622)))
+system.time(llis.model <- topicmodels::LDA(llisreduced.dtm, 27, method = "Gibbs", control = list(iter=2000, seed = 0622)))
 save(llis.model, file = "data/llismodel.RData")
 
 ## You use the topics function from the topicmodels package to extract the most likely topic
@@ -166,11 +175,14 @@ llis.terms[1:5]
 ## Adds topic number to original dataframe of lessons
 llis.display <- dplyr::inner_join(llis.display, doctopics.df, by = "LessonId")
 ## create Label for each topic
-topicTerms <-
-topTerms <- dplyr::filter(topicTerms, Terms < 4)
+topicTerms <- tidyr::gather(llis.terms, Topic)
+topicTerms <- cbind(topicTerms, Rank = rep(1:30))
+topTerms <- dplyr::filter(topicTerms, Rank < 4)
+topTerms <- dplyr::mutate(topTerms, Topic = stringr::word(Topic, 2))
+topTerms$Topic <- as.numeric(topTerms$Topic)
 topicLabel <- data.frame()
-for (i in 1:35){
-     z <- filter(topTerms, Topic == i)
+for (i in 1:27){
+     z <- dplyr::filter(topTerms, Topic == i)
      l <- as.data.frame(paste(z[1,2], z[2,2], z[3,2], sep = " " ), stringsAsFactors = FALSE)
      topicLabel <- rbind(topicLabel, l)
 
@@ -189,7 +201,7 @@ x$LessonId <- as.numeric(x$LessonId)
 theta2 <- cbind(x, theta)
 theta2 <- dplyr::left_join(theta2, FirstCategorybyLesson, by = "LessonId")
 ## Returns column means grouped by catergory
-theta.mean.by <- by(theta2[, 1:35], theta2$Category, colMeans)
+theta.mean.by <- by(theta2[, 2:28], theta2$Category, colMeans)
 theta.mean <- do.call("rbind", theta.mean.by)
 
 ## The corrplot package provides different schemes for plotting correlation.
@@ -273,6 +285,6 @@ topicmodels_json_ldavis <- function(fitted, corpus, doc_term){
 ## I have an issue with the number of items in the corpus not equal to the number of items in the dtm or
 ## the model. I had to for the corpus to use the same number of elements in order to do the calculation.
 ## I am still working to find out where the isse occured.
-llis.json <- topicmodels_json_ldavis(llis.model, llis.corpus[1:1621], llisreduced.dtm)
+llis.json <- topicmodels_json_ldavis(llis.model, llis.corpus, llisreduced.dtm)
 serVis(llis.json)
 
