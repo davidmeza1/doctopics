@@ -1,0 +1,25 @@
+Package: doctopics
+Type: Package
+Title: What the Package Does (Title Case)
+Version: 0.1
+Date: 2015-06-29
+Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
+Description: More about what it does (maybe more than one line)
+License: What license is it under?
+LazyData: TRUE
+Imports: corrplot,
+    doBy,
+    dplyr,
+    ggplot2,
+    LDAvis,
+    lubridate,
+    magrittr,
+    rJava,
+    Rmpfr,
+    stringi,
+    stringr,
+    tidyr,
+    tm,
+    topicmodels
+
+SystemRequirements: Java(>= 1.5)
